@@ -1,19 +1,39 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - master
 
 pool:
   vmImage: ubuntu-latest
 
+variables:
+  buildDir: 'dist'
+
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+- task: NodeTool@0
+  inputs:
+    versionSpec: '18.x'
+  displayName: 'Install Node.js'
+
+- script: npm install
+  displayName: 'Install dependencies'
+
+- script: npx pug src/pug --out $(buildDir)
+  displayName: 'Compile Pug to HTML'
+
+- script: npx sass src/scss:$(buildDir)/css
+  displayName: 'Compile SCSS to CSS'
 
 - script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+    cp -r src/assets $(buildDir)/assets
+    cp -r src/js $(buildDir)/js
+  displayName: 'Copy Assets and JS'
+
+- task: CopyFilesOverSSH@0
+  inputs:
+    sshEndpoint: 'lba-vm'  # <-- Use your service connection name here
+    sourceFolder: '$(Build.SourcesDirectory)/$(buildDir)'
+    contents: '**'
+    targetFolder: '/var/www/html/'  # <-- Change to your VM’s web root path
+    cleanTargetFolder: true
+    overwrite: true
+  displayName: 'Deploy to My VM via SSH'
+
