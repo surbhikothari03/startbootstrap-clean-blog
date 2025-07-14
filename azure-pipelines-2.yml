@@ -1,0 +1,57 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  appPath: '.'  # Root directory since you said you don't know the folders
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: '18.x'
+  displayName: 'Install Node.js'
+
+- script: |
+    cd $(appPath)
+    npm install
+  displayName: 'Install dependencies'
+
+- script: |
+    cd $(appPath)
+    npm run build
+  displayName: 'Build the app'
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(Build.SourcesDirectory)'
+    Contents: '**'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+  displayName: 'Copy build files to artifact directory'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+  displayName: 'Publish artifacts'
+
+# 🔐 Copy files to VM using SSH
+- task: CopyFilesOverSSH@0
+  inputs:
+    sshEndpoint: '32c99012-8815-4304-916f-e9d9f3be615b'
+    sourceFolder: '$(Build.ArtifactStagingDirectory)'
+    contents: '**'
+    targetFolder: '/home/azureuser/deployapp'
+  displayName: 'Copy files to Linux VM'
+
+# 🚀 Deploy and run app on the VM
+- task: SSH@0
+  inputs:
+    sshEndpoint: '32c99012-8815-4304-916f-e9d9f3be615b'
+    runOptions: 'commands'
+    commands: |
+      cd /home/azureuser/deployapp
+      npm install
+      pm2 restart all || pm2 start app.js
+  displayName: 'Deploy and restart app on VM'
